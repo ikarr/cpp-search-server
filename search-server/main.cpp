@@ -54,6 +54,12 @@ struct Query {
     set<string> minus_words;
 };
 
+struct FlaggedWord {
+    string word;
+    bool IsMinusWord;
+    bool NoStopWord;
+};
+
 class SearchServer {
 public:
     void SetStopWords(const string& text) {
@@ -91,10 +97,6 @@ private:
     set<string> stop_words_;
     int document_count_ = 0;
 
-    bool IsStopWord(const string& word) const {
-        return stop_words_.count(word) > 0;
-    }
-    
     bool IsMinusWord(const string& word) const {
         if (word[0] == '-') {
             return true;
@@ -102,13 +104,23 @@ private:
         return false;
     }
 
+    bool IsStopWord(const string& word) const {
+        if (word[0] == '-') {
+            return stop_words_.count(word.substr(1)) > 0;
+        }
+        return stop_words_.count(word) > 0;
+    }
+    
+    // метод возвращает структуру со словом запроса и флагами «минус-слово» и «НЕ стоп-слово»
+    FlaggedWord FlagTheWord(const string& word) const {
+        FlaggedWord word_prepared = { word, IsMinusWord(word), !IsStopWord(word) };
+        return word_prepared;
+    }
+    // upd 2022-12-07: обработка стоп-слов вынесена в отдельный метод FlagTheWord
     vector<string> SplitIntoWordsNoStop(const string& text) const {
         vector<string> words;
         for (const string& word : SplitIntoWords(text)) {
-            if (IsMinusWord(word) && !IsStopWord(word.substr(1))) {
-                words.push_back(word);
-            }
-            if (!IsStopWord(word)) {
+            if (FlagTheWord(word).NoStopWord) {
                 words.push_back(word);
             }
         }
@@ -119,42 +131,39 @@ private:
         Query query_words;
         for (const string& word : SplitIntoWordsNoStop(text)) {
             // если word – минус-слово, то – отрезаем '-' и добавляем word в minus_words
-            if (IsMinusWord(word)) {
+            if (FlagTheWord(word).IsMinusWord) {
                 query_words.minus_words.insert(word.substr(1));
+            }
             // иначе если word – плюс-слово и оно отсутствует в minus_words, то добавляем word в plus_words
-            } else if (!query_words.minus_words.count(word)) {
+            else if (!query_words.minus_words.count(word)) {
                 query_words.plus_words.insert(word);
             }
         }
         return query_words;
     }
-
+    // upd 2022-12-07: подсчёт IDF вынесен в отдельный метод GetIDF
+    double GetIDF(const string& plus_word) const {
+        double idf = log(document_count_ / static_cast<double>(word_to_document_freqs_.at(plus_word).size()));
+        return idf;
+    }
+    
     vector<Document> FindAllDocuments(const Query& query_words) const {
         // ключ — id найденного документа, а значение — релевантность соответствующего документа
         map<int, double> document_to_relevance;
         vector<Document> matched_documents;
-        double IDF;
         // итерирование по плюс-словам
         for (const string& plus_word : query_words.plus_words) {
             if (!word_to_document_freqs_.count(plus_word)) { continue; }
-            IDF = log(document_count_ / static_cast<double>(word_to_document_freqs_.at(plus_word).size()));
+            double IDF = GetIDF(plus_word);
             for (const auto& [id, tf] : word_to_document_freqs_.at(plus_word)) {
                 document_to_relevance[id] += IDF * tf;
             }
         }
         // итерирование по минус-словам
+        // upd 2022-12-07: из кода исключен этап предварительного занесения удаляемых id в вектор
         for (const string& minus_word : query_words.minus_words) {
-            if (!word_to_document_freqs_.count(minus_word)) {
-                continue;
-            }
-            // создаём контейнер для хранения ключей, помеченных на удаление
-            vector<int> documents_to_delete;
-            // помечаем на удаление id документов с минус-словами
+            if (!word_to_document_freqs_.count(minus_word)) { continue; }
             for (const auto& [id, TF] : word_to_document_freqs_.at(minus_word)) {
-                documents_to_delete.push_back(id);
-            }
-            // удаляем из словаря релевантности помеченные id
-            for (const auto& id : documents_to_delete) {
                 document_to_relevance.erase(id);
             }
         }
