@@ -24,11 +24,11 @@ int main() {
         request_queue.AddFindRequest("big collar"s);
         // первый запрос удален, 1437 запросов с нулевым результатом
         request_queue.AddFindRequest("sparrow"s);
-        std::cout << "Total empty requests: "s << request_queue.GetNoResultRequests() << std::endl;
+        cout << "Total empty requests: "s << request_queue.GetNoResultRequests() << endl;
         return 0;
-    } catch (const std::invalid_argument& inv_arg) {
-        std::cout << "Ошибка: "s << inv_arg.what() << std::endl;
-    } catch (const std::out_of_range& oor_arg) {
-        std::cout << "Ошибка: "s << oor_arg.what() << std::endl;
+    } catch (const invalid_argument& inv_arg) {
+        cout << "Ошибка: "s << inv_arg.what() << endl;
+    } catch (const out_of_range& oor_arg) {
+        cout << "Ошибка: "s << oor_arg.what() << endl;
     }
 }
