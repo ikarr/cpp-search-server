@@ -37,10 +37,16 @@ public:
     
     int GetDocumentCount() const;
     
-    int GetDocumentId(int index) const;
-    
     std::tuple<std::vector<std::string>, DocumentStatus>
         MatchDocument(const std::string& raw_query, int document_id) const;
+    
+    const std::map<std::string, double>& GetWordFrequencies(int document_id) const;
+    
+    void RemoveDocument(int document_id);
+    
+    std::set<int>::iterator begin();
+
+    std::set<int>::iterator end();
 
 private:
     struct Query {
@@ -60,10 +66,11 @@ private:
         bool is_valid;
     };
 
-    std::map<std::string, std::map<int, double>> word_to_document_freqs_; // ключ – слово, а значение – id документа и вычисленная TF
+    std::map<std::string, std::map<int, double>> word_to_document_freqs_; // ключ – слово, а значение – id документа и TF
     std::map<int, Attributes> documents_; // ключ - id документа, значением — его рейтинг и статус
     std::set<std::string> stop_words_;
-    std::map<size_t, int> index_to_id_; // ключ - порядковый индекс документа, значение - id документа
+    std::map<int, std::map<std::string, double>> document_to_word_freqs_; // ключ – id, а значение – слово документа и TF
+    std::set<int> document_ids_;
 
     bool IsMinusWord(const std::string& word) const;
     

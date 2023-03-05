@@ -15,9 +15,10 @@ void SearchServer::AddDocument(int document_id, const std::string& document, Doc
         double TF = 1.0 / words.size();
         for (const std::string& word : words) {
             word_to_document_freqs_[word][document_id] += TF;
+            document_to_word_freqs_[document_id][word] += TF;
         }
         documents_[document_id] = { ComputeAverageRating(ratings), status };
-        index_to_id_.insert({ index_to_id_.size(), document_id });
+        document_ids_.insert(document_id);
     }
 }
 
@@ -35,13 +36,6 @@ std::vector<Document> SearchServer::FindTopDocuments(const std::string& raw_quer
 
 int SearchServer::GetDocumentCount() const {
     return documents_.size();
-}
-
-int SearchServer::GetDocumentId(int index) const {
-    if ((index > index_to_id_.size()) || (index < 0)) {
-        throw std::out_of_range("Индекс переданного документа выходит за пределы допустимого диапазона"s);
-    }
-    return index_to_id_.at(index);
 }
 
 std::tuple<std::vector<std::string>, DocumentStatus> SearchServer::MatchDocument(const std::string& raw_query, int document_id) const {
@@ -65,6 +59,43 @@ std::tuple<std::vector<std::string>, DocumentStatus> SearchServer::MatchDocument
     }
     sort(matched_words.begin(), matched_words.end());
     return std::tuple{matched_words, documents_.at(document_id).status};
+}
+
+const std::map<std::string, double>& SearchServer::GetWordFrequencies(int document_id) const {
+    if (!document_to_word_freqs_.at(document_id).empty()) {
+        return document_to_word_freqs_.at(document_id);
+    }
+    static const std::map<std::string, double> no_result_found;
+    return no_result_found;
+}
+
+void SearchServer::RemoveDocument(int document_id) {
+    // 1/4: удаление документа из словаря document_to_word_freqs_
+    if (auto it = document_to_word_freqs_.find(document_id); it != document_to_word_freqs_.end()) {
+        document_to_word_freqs_.erase(it);
+    }
+    
+    // 2/4: удаление документа из словаря word_to_document_freqs_
+    for (std::pair<const std::string, std::map<int, double>>& word_to_id_freq : word_to_document_freqs_) {
+        if (std::map<int, double>::const_iterator it = word_to_id_freq.second.find(document_id); it != word_to_id_freq.second.end()) {
+            word_to_id_freq.second.erase(it);
+        }
+    }
+    
+    // 3/4: удаление документа из словаря documents_
+    auto it_to_erase = documents_.find(document_id);
+    documents_.erase(it_to_erase);
+    
+    // 4/4: удаление документа из множества document_ids_
+    document_ids_.erase(document_id);
+}
+
+std::set<int>::iterator SearchServer::begin() {
+    return document_ids_.begin();
+}
+
+std::set<int>::iterator SearchServer::end() {
+    return document_ids_.end();
 }
 
 bool SearchServer::IsMinusWord(const std::string& word) const {
