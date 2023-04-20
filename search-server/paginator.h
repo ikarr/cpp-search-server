@@ -1,7 +1,7 @@
 #pragma once
 #include <iostream>
-#include <vector>
 #include <stack>
+#include <vector>
 
 // шаблонная структура для работы с парами итераторов
 template <typename Iterator>
